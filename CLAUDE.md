@@ -79,7 +79,7 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 
 ### 地図上の場所検索・現在地移動
 
-地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はYahoo! JAPAN(YOLP) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。YOLPはCORS制限でブラウザから直接呼べないためAPI Route経由にしている。`YAHOO_CLIENT_ID`はサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。`src/components/map/VillageMap.tsx`内の検索ボックス・「現在地に移動」ボタン（`navigator.geolocation`）から使われ、見つかった座標へ`map.flyTo()`するだけで、村民ピン・スポットの登録データとは一切関係ない（ピン設置・スポット登録フローが意図的に排除した「住所検索」とは別物）。
+地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はGoogle Places API(施設名・ランドマーク、最も精度が高いが有料、月10,000件まで無料) > Yahoo!ローカルサーチ(施設名・ランドマーク) > Yahoo!ジオコーダ(住所) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。各サービスは得意分野が異なるため、該当なしの場合は次のサービスへ順に試す設計。YOLP・Google Places APIはいずれもCORS制限・APIキー秘匿の都合でブラウザから直接呼べないためAPI Route経由にしている。`GOOGLE_PLACES_API_KEY`・`YAHOO_CLIENT_ID`はどちらもサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。`src/components/map/VillageMap.tsx`内の検索ボックス・「現在地に移動」ボタン（`navigator.geolocation`）から使われ、見つかった座標へ`map.flyTo()`するだけで、村民ピン・スポットの登録データとは一切関係ない（ピン設置・スポット登録フローが意図的に排除した「住所検索」とは別物）。
 
 ### 認証・DB設計
 
