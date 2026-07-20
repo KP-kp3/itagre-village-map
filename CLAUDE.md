@@ -77,9 +77,9 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 
 参考: Airbnbのカスタムマップスタイル、Apple Mapsの温かみのある建物表現。
 
-### 地図上の場所検索
+### 地図上の場所検索・現在地移動
 
-`src/lib/geocode.ts`が地名・住所から座標へのジオコーディングを担う。地図タイルの切り替え方針（`mapBrandStyle.ts`）と同じパターンで、`NEXT_PUBLIC_MAPTILER_API_KEY`があればMapTiler Geocoding APIを、無ければAPIキー不要のNominatim(OpenStreetMap)を使う。`src/components/map/VillageMap.tsx`内の検索ボックスから呼ばれ、見つかった座標へ`map.flyTo()`するだけで、村民ピン・スポットの登録データとは一切関係ない（ピン設置・スポット登録フローが意図的に排除した「住所検索」とは別物）。
+地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はYahoo! JAPAN(YOLP) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。YOLPはCORS制限でブラウザから直接呼べないためAPI Route経由にしている。`YAHOO_CLIENT_ID`はサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。`src/components/map/VillageMap.tsx`内の検索ボックス・「現在地に移動」ボタン（`navigator.geolocation`）から使われ、見つかった座標へ`map.flyTo()`するだけで、村民ピン・スポットの登録データとは一切関係ない（ピン設置・スポット登録フローが意図的に排除した「住所検索」とは別物）。
 
 ### 認証・DB設計
 

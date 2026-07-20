@@ -60,6 +60,7 @@ export default function VillageMap({
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -215,6 +216,34 @@ export default function VillageMap({
     }
   };
 
+  const handleLocate = () => {
+    const map = mapRef.current;
+    if (!map || locating) return;
+
+    if (!navigator.geolocation) {
+      setSearchError("この端末では現在地を取得できません");
+      return;
+    }
+
+    setLocating(true);
+    setSearchError(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        map.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 14,
+          duration: 1000,
+        });
+        setLocating(false);
+      },
+      () => {
+        setSearchError("現在地を取得できませんでした");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    );
+  };
+
   return (
     <>
       <div ref={containerRef} className="h-dvh w-dvw" />
@@ -223,38 +252,64 @@ export default function VillageMap({
         onSubmit={handleSearch}
         className="fixed left-4 top-20 z-[1050] flex flex-col items-start gap-1.5"
       >
-        <div className="flex items-center gap-2 rounded-full bg-cream/95 px-4 py-2.5 shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md">
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="shrink-0 text-ink-soft"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSearchError(null);
-            }}
-            placeholder="場所を検索（例：渋谷駅）"
-            className="w-40 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft sm:w-56"
-          />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 rounded-full bg-cream/95 px-4 py-2.5 shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              className="shrink-0 text-ink-soft"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchError(null);
+              }}
+              placeholder="場所を検索（例：渋谷駅）"
+              className="w-40 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft sm:w-56"
+            />
+            <button
+              type="submit"
+              disabled={!searchQuery.trim() || searching}
+              aria-label="検索"
+              className="shrink-0 text-xs font-semibold text-teal-dark disabled:opacity-40"
+            >
+              {searching ? "…" : "検索"}
+            </button>
+          </div>
+
           <button
-            type="submit"
-            disabled={!searchQuery.trim() || searching}
-            aria-label="検索"
-            className="shrink-0 text-xs font-semibold text-teal-dark disabled:opacity-40"
+            type="button"
+            onClick={handleLocate}
+            disabled={locating}
+            aria-label="現在地に移動"
+            title="現在地に移動"
+            className="flex shrink-0 items-center justify-center rounded-full bg-cream/95 p-2.5 text-ink-soft shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md transition hover:text-teal-dark disabled:opacity-40"
           >
-            {searching ? "…" : "検索"}
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            </svg>
           </button>
         </div>
         {searchError && (
