@@ -106,7 +106,7 @@ export default function HomeScreen() {
       <button
         type="button"
         onClick={() => setListOpen(true)}
-        className="fixed bottom-[104px] right-4 z-[1050] flex items-center gap-1.5 rounded-full bg-cream px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] transition hover:bg-sand"
+        className="fixed bottom-4 left-4 z-[1050] flex items-center gap-1.5 rounded-full bg-cream px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] transition hover:bg-sand"
       >
         <svg
           width="15"
