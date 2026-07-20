@@ -1,0 +1,8 @@
+<svg width="64" height="70" viewBox="0 0 64 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <mask id="residentTagHole">
+    <path d="M14,30 Q14,20 24,20 L40,20 Q50,20 50,30 L50,52 L32,64 L14,52 Z" fill="white"/>
+    <circle cx="32" cy="14" r="5" fill="black"/>
+  </mask>
+  <path d="M14,30 Q14,20 24,20 L40,20 Q50,20 50,30 L50,52 L32,64 L14,52 Z" fill="#0ABAB5" mask="url(#residentTagHole)"/>
+  <circle cx="32" cy="14" r="5" fill="none" stroke="#0ABAB5" stroke-width="2"/>
+</svg>
