@@ -17,12 +17,21 @@ type Step = "picking" | "confirm" | "done";
 
 type Props = {
   open: boolean;
+  editingSpot: Spot | null;
   onClose: () => void;
   onSaved: (spot: Spot) => void;
+  onDeleted: (spotId: string) => void;
 };
 
-export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
+export default function SpotFormFlow({
+  open,
+  editingSpot,
+  onClose,
+  onSaved,
+  onDeleted,
+}: Props) {
   const { user, profile } = useAuth();
+  const isEdit = !!editingSpot;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -36,21 +45,24 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
   const [name, setName] = useState("");
   const [prefecture, setPrefecture] = useState("");
   const [description, setDescription] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
 
-    // モーダルを開くたびに新規登録の状態で初期化する意図的なsetState
+    // モーダルを開くたびに新規登録/編集対象の状態で初期化する意図的なsetState
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStep("picking");
-    setTempPosition(null);
-    setName("");
-    setPrefecture("");
-    setDescription("");
+    setTempPosition(editingSpot ? editingSpot.position : null);
+    setName(editingSpot?.name ?? "");
+    setPrefecture(editingSpot?.prefecture ?? "");
+    setDescription(editingSpot?.description ?? "");
+    setConfirmingDelete(false);
     setError(null);
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingSpot?.id]);
 
   useEffect(() => {
     if (!open || !containerRef.current) return;
@@ -80,6 +92,11 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
         setTempPosition([e.lngLat.lat, e.lngLat.lng]);
       });
 
+      if (editingSpot) {
+        map.setCenter([editingSpot.position[1], editingSpot.position[0]]);
+        map.setZoom(13);
+      }
+
       setMapReady(true);
     });
 
@@ -91,6 +108,7 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
       mapRef.current = null;
       setMapReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -122,19 +140,27 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
     setError(null);
     try {
       const supabase = createClient();
-      const { data, error: insertError } = await supabase
-        .from("spots")
-        .insert({
-          user_id: user.id,
-          name: name.trim(),
-          prefecture,
-          description: description.trim() ? description.trim() : null,
-          lat: tempPosition[0],
-          lng: tempPosition[1],
-        })
-        .select()
-        .single();
-      if (insertError) throw insertError;
+      const payload = {
+        name: name.trim(),
+        prefecture,
+        description: description.trim() ? description.trim() : null,
+        lat: tempPosition[0],
+        lng: tempPosition[1],
+      };
+
+      const { data, error: saveError } = editingSpot
+        ? await supabase
+            .from("spots")
+            .update(payload)
+            .eq("id", editingSpot.id)
+            .select()
+            .single()
+        : await supabase
+            .from("spots")
+            .insert({ user_id: user.id, ...payload })
+            .select()
+            .single();
+      if (saveError) throw saveError;
       setStep("done");
       onSaved(
         spotToVillageSpot({
@@ -151,6 +177,29 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
           : "エラーが発生しました。もう一度お試しください。",
       );
     } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingSpot || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error: deleteError } = await supabase
+        .from("spots")
+        .delete()
+        .eq("id", editingSpot.id);
+      if (deleteError) throw deleteError;
+      onDeleted(editingSpot.id);
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "エラーが発生しました。もう一度お試しください。",
+      );
       setSubmitting(false);
     }
   };
@@ -203,60 +252,100 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
                     "0 1px 2px rgba(58,51,44,0.06), 0 12px 20px -8px rgba(58,51,44,0.18), 0 32px 64px -20px rgba(58,51,44,0.45)",
                 }}
               >
-                <div className="flex flex-col gap-3">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold text-ink-soft">
-                      スポット名
-                    </span>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="例：隅田川テラス、大通公園"
-                      className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
-                    />
-                  </label>
+                {confirmingDelete ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium text-ink">
+                      本当にこのスポットを削除しますか？
+                    </p>
+                    <p className="text-xs text-ink-soft">
+                      削除すると元に戻せません。
+                    </p>
+                    {error && <p className="text-xs text-clay-dark">{error}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingDelete(false)}
+                        className="flex-1 rounded-full border border-ink/10 px-4 py-2.5 text-sm font-medium text-ink-soft transition hover:bg-ink/5"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDelete}
+                        disabled={submitting}
+                        className="flex-1 rounded-full bg-clay-dark px-4 py-2.5 text-sm font-semibold text-cream shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {submitting ? "削除中…" : "削除する"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-ink-soft">
+                        スポット名
+                      </span>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="例：隅田川テラス、大通公園"
+                        className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
+                      />
+                    </label>
 
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold text-ink-soft">
-                      都道府県
-                    </span>
-                    <select
-                      value={prefecture}
-                      onChange={(e) => setPrefecture(e.target.value)}
-                      className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
-                    >
-                      <option value="">選択してください</option>
-                      {PREFECTURES.map((pref) => (
-                        <option key={pref} value={pref}>
-                          {pref}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-ink-soft">
+                        都道府県
+                      </span>
+                      <select
+                        value={prefecture}
+                        onChange={(e) => setPrefecture(e.target.value)}
+                        className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
+                      >
+                        <option value="">選択してください</option>
+                        {PREFECTURES.map((pref) => (
+                          <option key={pref} value={pref}>
+                            {pref}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold text-ink-soft">
-                      説明（任意）
-                    </span>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={2}
-                      placeholder="どんな場所か教えてください"
-                      className="resize-none rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
-                    />
-                  </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-ink-soft">
+                        説明（任意）
+                      </span>
+                      <textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={2}
+                        placeholder="どんな場所か教えてください"
+                        className="resize-none rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-sage"
+                      />
+                    </label>
 
-                  <button
-                    type="button"
-                    onClick={() => setStep("confirm")}
-                    disabled={!canProceed}
-                    className="rounded-full bg-sage px-4 py-2.5 text-sm font-semibold text-cream shadow-sm transition hover:bg-sage-dark disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    次へ
-                  </button>
-                </div>
+                    <div className="flex gap-2">
+                      {isEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDelete(true)}
+                          className="rounded-full border border-ink/10 px-4 py-2.5 text-sm font-medium text-clay-dark transition hover:bg-ink/5"
+                        >
+                          削除
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setStep("confirm")}
+                        disabled={!canProceed}
+                        className="flex-1 rounded-full bg-sage px-4 py-2.5 text-sm font-semibold text-cream shadow-sm transition hover:bg-sage-dark disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        次へ
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -273,7 +362,7 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
             }}
           >
             <h2 className="text-lg font-bold text-ink">
-              この内容で登録しますか？
+              この内容で{isEdit ? "保存" : "登録"}しますか？
             </h2>
             <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-sand/60 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -314,7 +403,7 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
                 disabled={submitting}
                 className="flex-1 rounded-full bg-sage px-4 py-3 text-sm font-semibold text-cream shadow-sm transition hover:bg-sage-dark disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? "登録中…" : "登録"}
+                {submitting ? "保存中…" : isEdit ? "保存" : "登録"}
               </button>
             </div>
           </div>
@@ -334,7 +423,7 @@ export default function SpotFormFlow({ open, onClose, onSaved }: Props) {
               🌿
             </span>
             <p className="text-lg font-bold text-ink">
-              スポットを登録しました！
+              スポットを{isEdit ? "保存しました" : "登録しました"}！
             </p>
             <button
               type="button"

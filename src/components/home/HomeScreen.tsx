@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Header from "@/components/layout/Header";
 import PopupCard from "@/components/map/PopupCard";
@@ -9,14 +9,13 @@ import WelcomeOverlay from "@/components/welcome/WelcomeOverlay";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { residents } from "@/data/residents";
-import { spots } from "@/data/spots";
 import { villagerToResident } from "@/lib/villagerToResident";
 import {
   spotToVillageSpot,
   type SpotRowWithRegistrant,
 } from "@/lib/spotToVillageSpot";
-import type { SelectedMapItem, Spot } from "@/types/village";
+import type { SelectedMapItem, Resident, Spot } from "@/types/village";
+import type { Villager } from "@/types/database";
 
 const VillageMap = dynamic(() => import("@/components/map/VillageMap"), {
   ssr: false,
@@ -43,54 +42,66 @@ export default function HomeScreen() {
   const [selected, setSelected] = useState<SelectedMapItem>(null);
   const [pinFlowOpen, setPinFlowOpen] = useState(false);
   const [spotFlowOpen, setSpotFlowOpen] = useState(false);
+  const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
   const [listOpen, setListOpen] = useState(false);
-  const [realSpots, setRealSpots] = useState<Spot[]>([]);
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [spots, setSpots] = useState<Spot[]>([]);
 
-  // おすすめスポットは村民ピンと異なり全員分を公開表示するため、マウント時に全件取得する
-  // (一覧の「登録者」表示のためprofiles.discord_usernameをjoinする)
+  // 村民ピン・スポットはどちらも全員分を公開表示する実データ（ダミーサンプルは廃止）
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const supabase = createClient();
+
+    supabase
+      .from("villagers")
+      .select("*")
+      .not("lat", "is", null)
+      .then(({ data }) => {
+        if (data)
+          setResidents(
+            (data as Villager[])
+              .map(villagerToResident)
+              .filter((r): r is Resident => r !== null),
+          );
+      });
+
     supabase
       .from("spots")
       .select("*, profiles(discord_username)")
       .then(({ data }) => {
         if (data)
-          setRealSpots(
+          setSpots(
             (data as unknown as SpotRowWithRegistrant[]).map(spotToVillageSpot),
           );
       });
   }, []);
 
-  // 地図に表示する村民ピンは、ログイン中の自分がピンを設置していればそれを実データで合成する
-  // (全村民の実データ化はフェーズ6の一覧表示以降で対応)
-  const ownResident = useMemo(
-    () => (villager ? villagerToResident(villager) : null),
-    [villager],
-  );
-  const mapResidents = useMemo(() => {
-    if (!ownResident) return residents;
-    return [...residents.filter((r) => r.id !== ownResident.id), ownResident];
-  }, [ownResident]);
-
-  const mapSpots = useMemo(() => [...spots, ...realSpots], [realSpots]);
-
   return (
     <div className="relative h-dvh w-dvw overflow-hidden bg-cream">
       <Header
         onOpenPinFlow={() => setPinFlowOpen(true)}
-        onOpenSpotFlow={() => setSpotFlowOpen(true)}
+        onOpenSpotFlow={() => {
+          setEditingSpot(null);
+          setSpotFlowOpen(true);
+        }}
       />
       <VillageMap
-        residents={mapResidents}
-        spots={mapSpots}
+        residents={residents}
+        spots={spots}
         selectedId={selected?.data.id ?? null}
         onSelectResident={(resident) =>
           setSelected({ type: "resident", data: resident })
         }
         onSelectSpot={(spot) => setSelected({ type: "spot", data: spot })}
       />
-      <PopupCard selected={selected} onClose={() => setSelected(null)} />
+      <PopupCard
+        selected={selected}
+        onClose={() => setSelected(null)}
+        onEditSpot={(spot) => {
+          setEditingSpot(spot);
+          setSpotFlowOpen(true);
+        }}
+      />
 
       <button
         type="button"
@@ -118,22 +129,43 @@ export default function HomeScreen() {
         open={pinFlowOpen}
         onClose={() => setPinFlowOpen(false)}
         onSaved={(resident) => {
+          setResidents((prev) => {
+            if (resident) {
+              const exists = prev.some((r) => r.id === resident.id);
+              return exists
+                ? prev.map((r) => (r.id === resident.id ? resident : r))
+                : [...prev, resident];
+            }
+            return villager ? prev.filter((r) => r.id !== villager.id) : prev;
+          });
           setSelected(resident ? { type: "resident", data: resident } : null);
         }}
       />
       <SpotFormFlow
         open={spotFlowOpen}
+        editingSpot={editingSpot}
         onClose={() => setSpotFlowOpen(false)}
         onSaved={(spot) => {
-          setRealSpots((prev) => [...prev, spot]);
+          setSpots((prev) => {
+            const exists = prev.some((s) => s.id === spot.id);
+            return exists
+              ? prev.map((s) => (s.id === spot.id ? spot : s))
+              : [...prev, spot];
+          });
           setSelected({ type: "spot", data: spot });
+        }}
+        onDeleted={(spotId) => {
+          setSpots((prev) => prev.filter((s) => s.id !== spotId));
+          setSelected((prev) =>
+            prev?.type === "spot" && prev.data.id === spotId ? null : prev,
+          );
         }}
       />
       <ListPanel
         open={listOpen}
         onClose={() => setListOpen(false)}
-        residents={mapResidents}
-        spots={mapSpots}
+        residents={residents}
+        spots={spots}
         onSelectResident={(resident) =>
           setSelected({ type: "resident", data: resident })
         }

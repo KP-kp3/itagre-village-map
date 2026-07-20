@@ -17,6 +17,7 @@ export type SpotCategory = "spot" | "event" | "shop";
 
 export type Spot = {
   id: string;
+  userId: string;
   category: SpotCategory;
   name: string;
   prefecture: string;
@@ -27,6 +28,4 @@ export type Spot = {
 };
 
 export type SelectedMapItem =
-  | { type: "resident"; data: Resident }
-  | { type: "spot"; data: Spot }
-  | null;
+  { type: "resident"; data: Resident } | { type: "spot"; data: Spot } | null;

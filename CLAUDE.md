@@ -20,7 +20,7 @@
 
 村民ピンに`owner_name`（オーナー名）・住所的な位置情報は持たせない。表示するのは「プロフィール画像・名前・紹介文・場所名」の4つ（`prefecture`は村民ピンには表示しない。スポットのみ`prefecture`を保持・表示する）。
 
-フェーズ4時点では、地図に表示する村民ピンは「ログイン中の自分がピンを設置した場合のその1件」のみ実データ（`useAuth()`の`villager`）から描画し、他の村民ピン・サンプルの`residents`ダミーデータと合成して表示している。全村民の実データ化は一覧表示（フェーズ6）以降で対応する。
+地図に表示する村民ピン・スポットはどちらも全件が実データ（`lat`/`lng`が設定済みの`villagers`全件、`spots`全件）。本番公開に向けてサンプルのダミーデータ（`src/data/residents.ts`・`src/data/spots.ts`）は削除済み。
 
 ### 機能一覧
 
@@ -89,12 +89,12 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 - **プロフィール画像の扱い**：登録フォームを開いた時点の初期値はDiscordアバターURL。村民が画像を変更しない限りアップロードは発生せず、`photo_url`にはDiscordのURL（`cdn.discordapp.com`）がそのまま保存される。画像を変更した場合のみSupabase Storageバケット`villager-photos`（`supabase/migrations/0003_villager_photos_storage.sql`、パスは`{user_id}/{ファイル名}`、本人フォルダにのみ書き込み可・閲覧は公開）へアップロードし、生成された公開URLを`photo_url`に保存する。DBが持つのは常にURL文字列のみ
 - `spots`は`villagers`と独立したテーブルで、1人が複数登録できる（unique制約なし）。登録者(`user_id`)は自動取得。`category`列（既定値`'spot'`、check制約で`'spot'|'event'|'shop'`）を持たせているが、**MVPではUIに一切出さない**（一覧・登録画面・フィルターとも「おすすめスポット」のみ。event/shop用UIは将来それらを追加する時に初めて実装する）
 - スポット登録の確定仕様（フェーズ5開始前に確認済み）：承認フローなし（insertした瞬間から公開）、登録は`villagers`行（マップ登録）の有無を問わずDiscordログイン済みなら誰でも可、1人あたりの登録件数は無制限。`prefecture`は`not null`のため、逆ジオコーディングを使わず`src/data/prefectures.ts`の47都道府県から手動選択させる（ピン設置フローと同じく地図クリック＋簡単な入力のみの単純なUI方針を踏襲）。フェーズ5では登録・表示のみ実装し、編集・削除UIは未実装（DB側のRLSポリシーは既に用意済み）
-- スポットは村民ピンと異なり、登録された全件を実データとして地図に表示する（`src/components/home/HomeScreen.tsx`が`spots`テーブルを全件fetchし、サンプルの`spots`ダミーデータと合成）。村民ピン側は自分の1件のみ実データ化（フェーズ4の項を参照）という非対称な状態である点に注意
+- スポットは登録された全件を実データとして地図に表示する（`src/components/home/HomeScreen.tsx`が`spots`テーブルを全件fetch）。村民ピンも同様に`lat`/`lng`が設定済みの全件を実データ表示する
 - RLS：全テーブルSELECTは公開。INSERT/UPDATE/DELETEはログイン必須＋`auth.uid() = user_id`（自分の投稿のみ）。`is_admin()`関数がtrueを返す場合は全件編集可
 - `profiles`のroleは本人からは変更不可（RLSのwith checkで防止）。adminへの昇格は現時点ではSupabase側で直接SQL実行する運用（アプリ内に昇格UIはまだ無い）
 - Next.js側：`src/proxy.ts`（Next.js 16でmiddlewareから改名）でセッション更新、`src/app/auth/callback/route.ts`でOAuthコード交換、`src/components/auth/AuthProvider.tsx`でクライアント側のログイン状態を保持し`useAuth()`で参照する
 - `src/types/database.ts`は現在手書き。実プロジェクトへマイグレーション適用後は`supabase gen types typescript`の出力に置き換える
-- 一覧表示の確定仕様（フェーズ6開始前に確認済み）：画面右下「一覧」ボタン→1つのパネル内で🐾村民／📍スポットをタブ切替（`src/components/list/ListPanel.tsx`）。並び順は新着順（`createdAt`降順。ダミーサンプルデータは常に`2020-01-01`固定で末尾に来るようにしている）。検索（名前のリアルタイム部分一致）・都道府県フィルターはフェーズ7/8を待たずフェーズ6内で実装済み。村民ピンは`prefecture`を持たない設計のため、フィルターは`src/lib/nearestPrefecture.ts`（47都道府県の県庁所在地との直線距離が最も近いものを都度計算、DBには保存しない・外部API不使用）で都道府県を導出して両タブに適用する。一覧項目クリックで`VillageMap`の`selectedId`連携（パン＋ピン選択＋PopupCard表示）を流用し、パネルは自動的に閉じる
+- 一覧表示の確定仕様（フェーズ6開始前に確認済み）：画面右下「一覧」ボタン→1つのパネル内で🐾村民／📍スポットをタブ切替（`src/components/list/ListPanel.tsx`）。並び順は新着順（`createdAt`降順）。検索（名前のリアルタイム部分一致）・都道府県フィルターはフェーズ7/8を待たずフェーズ6内で実装済み。村民ピンは`prefecture`を持たない設計のため、フィルターは`src/lib/nearestPrefecture.ts`（47都道府県の県庁所在地との直線距離が最も近いものを都度計算、DBには保存しない・外部API不使用）で都道府県を導出して両タブに適用する。一覧項目クリックで`VillageMap`の`selectedId`連携（パン＋ピン選択＋PopupCard表示）を流用し、パネルは自動的に閉じる
 - スポットの「登録者」表示のため、一覧取得時のみ`spots`を`profiles.discord_username`とjoinして取得する（`src/lib/spotToVillageSpot.ts`の`SpotRowWithRegistrant`）。PopupCard自体には登録者を表示しない（一覧のみ）
 
 ### 実装フェーズ（この順に進める。1フェーズごとに変更内容・影響範囲・確認方法を報告する）

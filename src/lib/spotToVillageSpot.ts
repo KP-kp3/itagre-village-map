@@ -9,6 +9,7 @@ export type SpotRowWithRegistrant = SpotRow & {
 export function spotToVillageSpot(row: SpotRowWithRegistrant): Spot {
   return {
     id: row.id,
+    userId: row.user_id,
     category: row.category,
     name: row.name,
     prefecture: row.prefecture,

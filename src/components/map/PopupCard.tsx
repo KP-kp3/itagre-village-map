@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import type { SelectedMapItem } from "@/types/village";
+import { useAuth } from "@/components/auth/AuthProvider";
+import type { SelectedMapItem, Spot } from "@/types/village";
 
 type Props = {
   selected: SelectedMapItem;
   onClose: () => void;
+  onEditSpot: (spot: Spot) => void;
 };
 
-export default function PopupCard({ selected, onClose }: Props) {
+export default function PopupCard({ selected, onClose, onEditSpot }: Props) {
+  const { user } = useAuth();
   const [entered, setEntered] = useState(false);
 
   useEffect(() => {
@@ -29,6 +32,7 @@ export default function PopupCard({ selected, onClose }: Props) {
   const prefecture = isResident ? null : selected.data.prefecture;
   const body = isResident ? selected.data.bio : selected.data.description;
   const photoUrl = isResident ? selected.data.photoUrl : null;
+  const isOwnSpot = !isResident && !!user && user.id === selected.data.userId;
 
   return (
     <div
@@ -84,14 +88,20 @@ export default function PopupCard({ selected, onClose }: Props) {
         <div className="px-6 pb-6 pt-5">
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wider ${
-              isResident ? "bg-teal/12 text-teal-dark" : "bg-sage/15 text-sage-dark"
+              isResident
+                ? "bg-teal/12 text-teal-dark"
+                : "bg-sage/15 text-sage-dark"
             }`}
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${isResident ? "bg-teal" : "bg-sage"}`} />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${isResident ? "bg-teal" : "bg-sage"}`}
+            />
             {isResident ? "村民" : prefecture}
           </span>
 
-          <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">{title}</h2>
+          <h2 className="mt-3 text-xl font-bold tracking-tight text-ink">
+            {title}
+          </h2>
 
           {isResident && (
             <>
@@ -117,6 +127,16 @@ export default function PopupCard({ selected, onClose }: Props) {
           <div className="mt-4 border-t border-ink/[0.06] pt-4">
             <p className="text-[13.5px] leading-[1.8] text-ink-soft">{body}</p>
           </div>
+
+          {isOwnSpot && (
+            <button
+              type="button"
+              onClick={() => onEditSpot(selected.data as Spot)}
+              className="mt-4 w-full rounded-full border border-ink/10 px-4 py-2.5 text-sm font-medium text-sage-dark transition hover:bg-sage/10"
+            >
+              このスポットを編集
+            </button>
+          )}
         </div>
       </div>
     </div>

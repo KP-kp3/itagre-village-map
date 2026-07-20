@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { uploadVillagerPhoto } from "@/lib/supabase/uploadVillagerPhoto";
+import { validateImageFile } from "@/lib/validateImageFile";
 
 const BIO_MAX = 100;
 
@@ -14,7 +15,11 @@ type Props = {
   onRequestPinFlow: () => void;
 };
 
-export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: Props) {
+export default function VillagerFormModal({
+  open,
+  onClose,
+  onRequestPinFlow,
+}: Props) {
   const { user, profile, villager, refreshVillager } = useAuth();
   const mode = villager ? "edit" : "create";
 
@@ -65,7 +70,15 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setPendingFile(file);
+    if (!file) return;
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setError(validationError);
+      e.target.value = "";
+      return;
+    }
+    setError(null);
+    setPendingFile(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,7 +118,9 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
       }
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "エラーが発生しました。もう一度お試しください。"
+        err instanceof Error
+          ? err.message
+          : "エラーが発生しました。もう一度お試しください。",
       );
     } finally {
       setSubmitting(false);
@@ -134,7 +149,9 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
             <span className="text-4xl" aria-hidden="true">
               🎉
             </span>
-            <p className="text-lg font-bold text-ink">マップへの登録が完了しました！</p>
+            <p className="text-lg font-bold text-ink">
+              マップへの登録が完了しました！
+            </p>
             <p className="text-[13.5px] leading-relaxed text-ink-soft">
               地図にはまだ表示されていません。お気に入りの場所にピンを設置すると、村民ピンとして表示されます。
             </p>
@@ -154,7 +171,10 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-6 py-6">
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-5 px-6 py-6"
+          >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-ink">
                 {mode === "create" ? "マップに登録" : "プロフィールを編集"}
@@ -221,7 +241,9 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
 
             <label className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink-soft">紹介文</span>
+                <span className="text-xs font-semibold text-ink-soft">
+                  紹介文
+                </span>
                 <span className="text-[11px] text-ink-soft">
                   {bio.length} / {BIO_MAX}
                 </span>
@@ -243,7 +265,11 @@ export default function VillagerFormModal({ open, onClose, onRequestPinFlow }: P
               disabled={!name.trim() || submitting}
               className="w-full rounded-full bg-teal px-5 py-3 text-sm font-semibold text-cream shadow-sm transition hover:bg-teal-dark disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? "保存中…" : mode === "create" ? "登録する" : "保存する"}
+              {submitting
+                ? "保存中…"
+                : mode === "create"
+                  ? "登録する"
+                  : "保存する"}
             </button>
           </form>
         )}
