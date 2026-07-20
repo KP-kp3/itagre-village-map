@@ -4,8 +4,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import type { Resident, Spot } from "@/types/village";
-import { createMarkerElement, residentIconConfig, spotIconConfig } from "./markerIcons";
+import {
+  createMarkerElement,
+  residentIconConfig,
+  spotIconConfig,
+} from "./markerIcons";
 import { loadBrandedStyle } from "@/lib/mapBrandStyle";
+import { geocode } from "@/lib/geocode";
 
 // 九州〜北海道の日本列島がちょうど画面に収まる範囲（[lng, lat]の順）
 // fitBoundsで指定するため、画面比率（PC/スマホ）が変わっても常に「日本全体」を維持できる
@@ -45,10 +50,16 @@ export default function VillageMap({
   const markersById = useRef<Map<string, MarkerEntry>>(new Map());
   // クリック時のハンドラが常に最新のresident/spotを参照できるよう、
   // マーカー作成時ではなくクリック時にここから引く(データ更新のたびにリスナーを付け替える必要がなくなる)
-  const dataById = useRef<Map<string, { type: "resident"; data: Resident } | { type: "spot"; data: Spot }>>(
-    new Map()
-  );
+  const dataById = useRef<
+    Map<
+      string,
+      { type: "resident"; data: Resident } | { type: "spot"; data: Spot }
+    >
+  >(new Map());
   const [mapReady, setMapReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -71,7 +82,10 @@ export default function VillageMap({
       mapRef.current = map;
 
       map.on("error", (e) => console.error("maplibre error:", e.error));
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      map.addControl(
+        new maplibregl.NavigationControl({ showCompass: false }),
+        "bottom-right",
+      );
 
       setMapReady(true);
     });
@@ -133,11 +147,14 @@ export default function VillageMap({
       id: string,
       lngLat: [number, number],
       config: typeof residentIconConfig | typeof spotIconConfig,
-      onClick: () => void
+      onClick: () => void,
     ) {
       const existing = entries.get(id);
       if (existing) {
-        if (existing.lngLat[0] !== lngLat[0] || existing.lngLat[1] !== lngLat[1]) {
+        if (
+          existing.lngLat[0] !== lngLat[0] ||
+          existing.lngLat[1] !== lngLat[1]
+        ) {
           existing.marker.setLngLat(lngLat);
           existing.lngLat = lngLat;
         }
@@ -177,5 +194,75 @@ export default function VillageMap({
     }
   }, [selectedId]);
 
-  return <div ref={containerRef} className="h-dvh w-dvw" />;
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const map = mapRef.current;
+    if (!map || !searchQuery.trim() || searching) return;
+
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const result = await geocode(searchQuery.trim());
+      if (!result) {
+        setSearchError("見つかりませんでした");
+        return;
+      }
+      map.flyTo({ center: [result.lng, result.lat], zoom: 14, duration: 1000 });
+    } catch {
+      setSearchError("検索中にエラーが発生しました");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <>
+      <div ref={containerRef} className="h-dvh w-dvw" />
+
+      <form
+        onSubmit={handleSearch}
+        className="fixed left-4 top-20 z-[1050] flex flex-col items-start gap-1.5"
+      >
+        <div className="flex items-center gap-2 rounded-full bg-cream/95 px-4 py-2.5 shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="shrink-0 text-ink-soft"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchError(null);
+            }}
+            placeholder="場所を検索（例：渋谷駅）"
+            className="w-40 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft sm:w-56"
+          />
+          <button
+            type="submit"
+            disabled={!searchQuery.trim() || searching}
+            aria-label="検索"
+            className="shrink-0 text-xs font-semibold text-teal-dark disabled:opacity-40"
+          >
+            {searching ? "…" : "検索"}
+          </button>
+        </div>
+        {searchError && (
+          <span className="rounded-full bg-cream/95 px-3 py-1 text-xs text-clay-dark shadow-sm">
+            {searchError}
+          </span>
+        )}
+      </form>
+    </>
+  );
 }
