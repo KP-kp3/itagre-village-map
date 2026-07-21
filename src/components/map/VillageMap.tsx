@@ -10,7 +10,7 @@ import {
   spotIconConfig,
 } from "./markerIcons";
 import { loadBrandedStyle } from "@/lib/mapBrandStyle";
-import { geocode } from "@/lib/geocode";
+import LocationSearchBox from "./LocationSearchBox";
 
 // 九州〜北海道の日本列島がちょうど画面に収まる範囲（[lng, lat]の順）
 // fitBoundsで指定するため、画面比率（PC/スマホ）が変わっても常に「日本全体」を維持できる
@@ -57,10 +57,6 @@ export default function VillageMap({
     >
   >(new Map());
   const [mapReady, setMapReady] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -195,129 +191,18 @@ export default function VillageMap({
     }
   }, [selectedId]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const map = mapRef.current;
-    if (!map || !searchQuery.trim() || searching) return;
-
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const result = await geocode(searchQuery.trim());
-      if (!result) {
-        setSearchError("見つかりませんでした");
-        return;
-      }
-      map.flyTo({ center: [result.lng, result.lat], zoom: 14, duration: 1000 });
-    } catch {
-      setSearchError("検索中にエラーが発生しました");
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const handleLocate = () => {
-    const map = mapRef.current;
-    if (!map || locating) return;
-
-    if (!navigator.geolocation) {
-      setSearchError("この端末では現在地を取得できません");
-      return;
-    }
-
-    setLocating(true);
-    setSearchError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        map.flyTo({
-          center: [position.coords.longitude, position.coords.latitude],
-          zoom: 14,
-          duration: 1000,
-        });
-        setLocating(false);
-      },
-      () => {
-        setSearchError("現在地を取得できませんでした");
-        setLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
-  };
-
   return (
     <>
       <div ref={containerRef} className="h-dvh w-dvw" />
-
-      <form
-        onSubmit={handleSearch}
-        className="fixed left-4 top-20 z-[1050] flex flex-col items-start gap-1.5"
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 rounded-full bg-cream/95 px-4 py-2.5 shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="shrink-0 text-ink-soft"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setSearchError(null);
-              }}
-              placeholder="場所を検索（例：渋谷駅）"
-              className="w-40 bg-transparent text-sm text-ink outline-none placeholder:text-ink-soft sm:w-56"
-            />
-            <button
-              type="submit"
-              disabled={!searchQuery.trim() || searching}
-              aria-label="検索"
-              className="shrink-0 text-xs font-semibold text-teal-dark disabled:opacity-40"
-            >
-              {searching ? "…" : "検索"}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLocate}
-            disabled={locating}
-            aria-label="現在地に移動"
-            title="現在地に移動"
-            className="flex shrink-0 items-center justify-center rounded-full bg-cream/95 p-2.5 text-ink-soft shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] backdrop-blur-md transition hover:text-teal-dark disabled:opacity-40"
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-            </svg>
-          </button>
-        </div>
-        {searchError && (
-          <span className="rounded-full bg-cream/95 px-3 py-1 text-xs text-clay-dark shadow-sm">
-            {searchError}
-          </span>
-        )}
-      </form>
+      <LocationSearchBox
+        onFound={(lat, lng) => {
+          mapRef.current?.flyTo({
+            center: [lng, lat],
+            zoom: 14,
+            duration: 1000,
+          });
+        }}
+      />
     </>
   );
 }

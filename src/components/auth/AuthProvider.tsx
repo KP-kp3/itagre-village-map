@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -93,13 +99,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithDiscord = async () => {
     if (!isSupabaseConfigured) {
-      console.warn("Supabaseが未設定のため、ログインできません（.env.localを確認してください）");
+      console.warn(
+        "Supabaseが未設定のため、ログインできません（.env.localを確認してください）",
+      );
       return;
     }
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "discord",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // guildsスコープでログイン時にサーバー参加状況を確認できるようにする(src/app/auth/callback/route.ts)
+        scopes: "identify email guilds",
+      },
     });
   };
 

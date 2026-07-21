@@ -79,10 +79,17 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 
 ### 地図上の場所検索・現在地移動
 
-地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はGoogle Places API(施設名・ランドマーク、最も精度が高いが有料、月10,000件まで無料) > Yahoo!ローカルサーチ(施設名・ランドマーク) > Yahoo!ジオコーダ(住所) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。各サービスは得意分野が異なるため、該当なしの場合は次のサービスへ順に試す設計。YOLP・Google Places APIはいずれもCORS制限・APIキー秘匿の都合でブラウザから直接呼べないためAPI Route経由にしている。`GOOGLE_PLACES_API_KEY`・`YAHOO_CLIENT_ID`はどちらもサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。`src/components/map/VillageMap.tsx`内の検索ボックス・「現在地に移動」ボタン（`navigator.geolocation`）から使われ、見つかった座標へ`map.flyTo()`するだけで、村民ピン・スポットの登録データとは一切関係ない（ピン設置・スポット登録フローが意図的に排除した「住所検索」とは別物）。
+地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はGoogle Places API(施設名・ランドマーク、最も精度が高いが有料、月10,000件まで無料) > Yahoo!ローカルサーチ(施設名・ランドマーク) > Yahoo!ジオコーダ(住所) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。各サービスは得意分野が異なるため、該当なしの場合は次のサービスへ順に試す設計。YOLP・Google Places APIはいずれもCORS制限・APIキー秘匿の都合でブラウザから直接呼べないためAPI Route経由にしている。`GOOGLE_PLACES_API_KEY`・`YAHOO_CLIENT_ID`はどちらもサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。検索ボックス・「現在地に移動」ボタンのUIは`src/components/map/LocationSearchBox.tsx`に共通化してあり、`onFound(lat, lng)`コールバックで呼び出し側に座標を渡すだけの設計。3箇所で使われている：
+- `VillageMap.tsx`（一覧用の地図）：`onFound`で`map.flyTo()`するだけ
+- `PinPlacementFlow.tsx`・`SpotFormFlow.tsx`（ピン設置・スポット登録の地図）：`onFound`で`setTempPosition()`と`map.flyTo()`の両方を行う。検索結果の場所にそのまま仮ピンを置ける（例：「神代ドッグラン」と検索→その場所に仮ピンが立ち、あとは場所名等を入力して保存するだけ）
+
+いずれも見つかった座標を使うだけで、村民ピン・スポットの登録データ自体とは無関係（ピン設置・スポット登録フローが「住所検索・逆ジオコーディングは使わない」と決めたのは、位置を確定させる手段としての話であり、検索は位置を探す手段として別途提供している）。
+
+**入力中の候補表示（Googleマップ風のサジェスト）**：`LocationSearchBox.tsx`は入力から300msデバウンスして`src/app/api/geocode/suggest/route.ts`を呼び、ドロップダウンで候補を表示する。候補選択時は`src/app/api/geocode/place/route.ts`（Place Details）で初めて座標を取得する2段階構成（Google Places Autocompleteのレスポンス自体には座標が含まれないため）。この候補表示はGoogle Places専用の機能で、`GOOGLE_PLACES_API_KEY`未設定の場合は常に候補なし（空配列）になり、Enter/検索ボタンでの確定検索（`route.ts`、Yahoo!以下へのフォールバックあり）のみが使える。
 
 ### 認証・DB設計
 
+- **会員制コミュニティのアクセス制限**：ITAGRE VillageはDiscordサーバーメンバー限定のコミュニティのため、退会者が引き続きログインできてしまわないよう、ログイン時にDiscordサーバー（`DISCORD_GUILD_ID`環境変数）の現メンバーかどうかを確認する（`src/app/auth/callback/route.ts`）。Discord OAuthに`guilds`スコープを追加し（`AuthProvider.tsx`の`signInWithDiscord`）、`exchangeCodeForSession()`が返す`provider_token`でDiscordの`/users/@me/guilds`を叩いて判定。メンバーでなければ即`signOut()`して`/?error=not_member`へリダイレクトし、`AccessDeniedNotice.tsx`がその場で通知を表示する。**サーバーを退出した瞬間ではなく、次にログインを試みたタイミングでのブロックになる**（Botによるリアルタイム監視は行わない、ログイン時チェックのみのシンプルな方式）。Discord API呼び出し自体が失敗した場合はブロックしない（fail-open。誤って正規メンバーを締め出さないことを優先）。`DISCORD_GUILD_ID`未設定の場合はこのチェック自体を行わない
 - テーブル：`profiles`（auth.usersを1:1拡張、role: member/admin）、`villagers`（村民プロフィール＋任意のピン）、`spots`（おすすめスポット）。定義は`supabase/migrations/`配下
 - **Discordログイン時は`profiles`のみ自動作成する。`villagers`はログインでは作らない**（`handle_new_user()`はprofilesのみ担当）
 - `villagers`は「マップに登録」操作で初めて作られる（`dog_name`→名前、`bio`→紹介文100字以内、`photo_url`→初期値はDiscordアバター、変更可）。この時点では`place_name`/`prefecture`/`lat`/`lng`はnullのまま＝地図には表示されない

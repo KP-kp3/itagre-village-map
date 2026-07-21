@@ -10,6 +10,7 @@ import { spotToVillageSpot } from "@/lib/spotToVillageSpot";
 import { PREFECTURES } from "@/data/prefectures";
 import { createMarkerElement, spotIconConfig } from "./markerIcons";
 import { JAPAN_BOUNDS } from "./VillageMap";
+import LocationSearchBox from "./LocationSearchBox";
 import type { Spot } from "@/types/village";
 import type { Spot as SpotRow } from "@/types/database";
 
@@ -237,6 +238,17 @@ export default function SpotFormFlow({
               </button>
             </div>
           </div>
+
+          <LocationSearchBox
+            onFound={(lat, lng) => {
+              setTempPosition([lat, lng]);
+              mapRef.current?.flyTo({
+                center: [lng, lat],
+                zoom: 15,
+                duration: 1000,
+              });
+            }}
+          />
 
           {tempPosition && (
             <div

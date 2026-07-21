@@ -9,6 +9,7 @@ import { loadBrandedStyle } from "@/lib/mapBrandStyle";
 import { villagerToResident } from "@/lib/villagerToResident";
 import { createMarkerElement, residentIconConfig } from "./markerIcons";
 import { JAPAN_BOUNDS } from "./VillageMap";
+import LocationSearchBox from "./LocationSearchBox";
 import type { Resident } from "@/types/village";
 import type { Villager } from "@/types/database";
 
@@ -30,7 +31,9 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
 
   const [mapReady, setMapReady] = useState(false);
   const [step, setStep] = useState<Step>("picking");
-  const [tempPosition, setTempPosition] = useState<[number, number] | null>(null);
+  const [tempPosition, setTempPosition] = useState<[number, number] | null>(
+    null,
+  );
   const [placeName, setPlaceName] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +45,11 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
     // モーダルを開くたびに現在のピン状態(未設置ならnull)で初期化する意図的なsetState
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStep("picking");
-    setTempPosition(villager?.lat != null && villager?.lng != null ? [villager.lat, villager.lng] : null);
+    setTempPosition(
+      villager?.lat != null && villager?.lng != null
+        ? [villager.lat, villager.lng]
+        : null,
+    );
     setPlaceName(villager?.place_name ?? "");
     setConfirmingDelete(false);
     setError(null);
@@ -68,13 +75,19 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
         attributionControl: { compact: true },
       });
       mapRef.current = map;
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      map.addControl(
+        new maplibregl.NavigationControl({ showCompass: false }),
+        "bottom-right",
+      );
 
       map.on("click", (e) => {
         setTempPosition([e.lngLat.lat, e.lngLat.lng]);
       });
 
-      const initial = villager?.lat != null && villager?.lng != null ? [villager.lat, villager.lng] : null;
+      const initial =
+        villager?.lat != null && villager?.lng != null
+          ? [villager.lat, villager.lng]
+          : null;
       if (initial) {
         map.setCenter([initial[1], initial[0]]);
         map.setZoom(13);
@@ -101,7 +114,10 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
 
     if (!markerRef.current) {
       const { outer } = createMarkerElement(residentIconConfig);
-      markerRef.current = new maplibregl.Marker({ element: outer, anchor: "bottom" })
+      markerRef.current = new maplibregl.Marker({
+        element: outer,
+        anchor: "bottom",
+      })
         .setLngLat([lng, lat])
         .addTo(map);
     } else {
@@ -132,7 +148,11 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
       setStep("done");
       onSaved(villagerToResident(data as Villager));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました。もう一度お試しください。");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "エラーが発生しました。もう一度お試しください。",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -153,7 +173,11 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
       onSaved(null);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "エラーが発生しました。もう一度お試しください。");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "エラーが発生しました。もう一度お試しください。",
+      );
       setSubmitting(false);
     }
   };
@@ -177,17 +201,38 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
                 aria-label="閉じる"
                 className="shrink-0 rounded-full p-1 text-ink-soft transition hover:bg-ink/5 hover:text-ink"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                >
                   <path d="M6 6l12 12M18 6L6 18" />
                 </svg>
               </button>
             </div>
           </div>
 
+          <LocationSearchBox
+            onFound={(lat, lng) => {
+              setTempPosition([lat, lng]);
+              mapRef.current?.flyTo({
+                center: [lng, lat],
+                zoom: 15,
+                duration: 1000,
+              });
+            }}
+          />
+
           {tempPosition && (
             <div
               className="fixed inset-x-0 bottom-0 z-[1410] flex justify-center px-4 pb-4 sm:pb-6"
-              style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+              style={{
+                paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+              }}
             >
               <div
                 className="w-full max-w-md overflow-hidden rounded-[28px] border border-ink/[0.06] bg-cream p-5"
@@ -198,7 +243,9 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
               >
                 {confirmingDelete ? (
                   <div className="flex flex-col gap-3">
-                    <p className="text-sm font-medium text-ink">本当にこのピンを削除しますか？</p>
+                    <p className="text-sm font-medium text-ink">
+                      本当にこのピンを削除しますか？
+                    </p>
                     <p className="text-xs text-ink-soft">
                       削除してもマップ登録は解除されません。あとから好きなタイミングで再設置できます。
                     </p>
@@ -224,7 +271,9 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
                 ) : (
                   <div className="flex flex-col gap-3">
                     <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-semibold text-ink-soft">場所名</span>
+                      <span className="text-xs font-semibold text-ink-soft">
+                        場所名
+                      </span>
                       <input
                         type="text"
                         value={placeName}
@@ -269,13 +318,26 @@ export default function PinPlacementFlow({ open, onClose, onSaved }: Props) {
                 "0 1px 2px rgba(58,51,44,0.06), 0 12px 20px -8px rgba(58,51,44,0.18), 0 32px 64px -20px rgba(58,51,44,0.45)",
             }}
           >
-            <h2 className="text-lg font-bold text-ink">この内容で保存しますか？</h2>
+            <h2 className="text-lg font-bold text-ink">
+              この内容で保存しますか？
+            </h2>
             <div className="mt-4 flex items-center gap-2 rounded-2xl bg-sand/60 px-4 py-3">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-dark" aria-hidden="true">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="shrink-0 text-teal-dark"
+                aria-hidden="true"
+              >
                 <path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12Z" />
                 <circle cx="12" cy="9" r="2.5" />
               </svg>
-              <span className="text-sm font-medium text-ink">{placeName.trim()}</span>
+              <span className="text-sm font-medium text-ink">
+                {placeName.trim()}
+              </span>
             </div>
             {error && <p className="mt-3 text-xs text-clay-dark">{error}</p>}
             <div className="mt-5 flex gap-2">
