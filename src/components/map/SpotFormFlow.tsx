@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { loadBrandedStyle } from "@/lib/mapBrandStyle";
 import { spotToVillageSpot } from "@/lib/spotToVillageSpot";
+import { nearestPrefecture } from "@/lib/nearestPrefecture";
 import { PREFECTURES } from "@/data/prefectures";
 import { createMarkerElement, spotIconConfig } from "./markerIcons";
 import { JAPAN_BOUNDS } from "./VillageMap";
@@ -90,7 +91,9 @@ export default function SpotFormFlow({
       );
 
       map.on("click", (e) => {
-        setTempPosition([e.lngLat.lat, e.lngLat.lng]);
+        const position: [number, number] = [e.lngLat.lat, e.lngLat.lng];
+        setTempPosition(position);
+        setPrefecture(nearestPrefecture(position));
       });
 
       if (editingSpot) {
@@ -242,6 +245,7 @@ export default function SpotFormFlow({
           <LocationSearchBox
             onFound={(lat, lng) => {
               setTempPosition([lat, lng]);
+              setPrefecture(nearestPrefecture([lat, lng]));
               mapRef.current?.flyTo({
                 center: [lng, lat],
                 zoom: 15,

@@ -31,12 +31,27 @@ function isRailOrTransit(id: string) {
   return lower.includes("rail") || lower.includes("transit");
 }
 
+// MapTilerのラベルレイヤーは国・都市・都道府県名などで"name:en"（英語名）を優先する
+// text-fieldになっていることが多く、そのままだと「Tokyo」「TOCHIGI PREFECTURE」のように
+// 英語表記になってしまう。name:enを参照しているtext-fieldだけを、日本語タグ→現地名(name)→
+// 英語名の優先順で組み立て直したexpressionに置き換える(name:enに触れていないtext-fieldは
+// 既にローカル名(name)を使っているため変更しない)
+function preferJapaneseLabel(textField: unknown): unknown {
+  const referencesEnglishName =
+    (typeof textField === "string" && textField.includes("name:en")) ||
+    (Array.isArray(textField) && JSON.stringify(textField).includes("name:en"));
+  if (!referencesEnglishName) return textField;
+  return ["coalesce", ["get", "name:ja"], ["get", "name"], ["get", "name:en"]];
+}
+
 /**
  * OpenFreeMap / MapTilerはどちらもOpenMapTilesスキーマ（source-layer名が共通）を使うため、
  * 同じロジックでブランドカラーを両方に適用できる。レイヤー構成の細部（1クラス1レイヤー vs
  * 複数クラス統合レイヤー）が異なるため、色は原則classの値で判定するdata-driven expressionにしている。
  */
-export function applyBrandPalette(style: StyleSpecification): StyleSpecification {
+export function applyBrandPalette(
+  style: StyleSpecification,
+): StyleSpecification {
   const layers = style.layers.map((layer): LayerSpecification => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const next = { ...layer, paint: { ...(layer as any).paint } } as any;
@@ -70,8 +85,13 @@ export function applyBrandPalette(style: StyleSpecification): StyleSpecification
         next.paint["fill-color"] = MAP_BRAND_COLORS.building;
         next.paint["fill-outline-color"] = MAP_BRAND_COLORS.buildingOutline;
       }
-      if (layer.type === "fill-extrusion") next.paint["fill-extrusion-color"] = MAP_BRAND_COLORS.building;
-    } else if (sourceLayer === "transportation" && layer.type === "line" && !isRailOrTransit(idLower)) {
+      if (layer.type === "fill-extrusion")
+        next.paint["fill-extrusion-color"] = MAP_BRAND_COLORS.building;
+    } else if (
+      sourceLayer === "transportation" &&
+      layer.type === "line" &&
+      !isRailOrTransit(idLower)
+    ) {
       next.paint["line-color"] = ROAD_COLOR_EXPRESSION;
     }
 
@@ -79,6 +99,20 @@ export function applyBrandPalette(style: StyleSpecification): StyleSpecification
       next.paint["text-color"] = MAP_BRAND_COLORS.label;
       next.paint["text-halo-color"] = MAP_BRAND_COLORS.labelHalo;
       next.paint["text-halo-width"] = 1.2;
+
+      // ランドマーク(POI)のカラフルなアイコン画像は、村民ピン・スポットピンだけを
+      // 地図上の高彩度要素にしたいブランド方針と合わないため非表示にし、文字ラベルのみ残す
+      if (sourceLayer === "poi" && next.layout?.["icon-image"]) {
+        next.layout = { ...next.layout };
+        delete next.layout["icon-image"];
+      }
+
+      if (next.layout?.["text-field"]) {
+        next.layout = {
+          ...next.layout,
+          "text-field": preferJapaneseLabel(next.layout["text-field"]),
+        };
+      }
     }
 
     return next;
@@ -94,9 +128,11 @@ const MAPTILER_API_KEY = process.env.NEXT_PUBLIC_MAPTILER_API_KEY;
 
 // APIキー未設定時は登録不要の無料ベクタータイル(OpenFreeMap)にフォールバックする。
 // キー設定後はこの関数の戻り値を変えるだけでMapTilerへ切り替わる。
+// streets-v2を使うのは、basic-v2には駅名以外の一般的なランドマーク・施設名(POI)レイヤーが
+// 含まれていないため（買い物・飲食・観光・公園等のPOIラベルを地図上に表示するために必要）
 export function getBaseStyleUrl() {
   return MAPTILER_API_KEY
-    ? `https://api.maptiler.com/maps/basic-v2/style.json?key=${MAPTILER_API_KEY}`
+    ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_API_KEY}`
     : "https://tiles.openfreemap.org/styles/liberty";
 }
 

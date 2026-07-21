@@ -9,7 +9,9 @@ export type GeocodeResult = {
 
 export type Suggestion = {
   placeId: string;
-  text: string;
+  // Googleマップの候補表示と同じ2段組み用（mainText: スポット名、secondaryText: 住所）
+  mainText: string;
+  secondaryText: string;
 };
 
 // 確定検索（Enter/検索ボタン）。複数プロバイダの中から最初に見つかった1件を返す

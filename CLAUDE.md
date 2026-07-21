@@ -77,6 +77,10 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 
 参考: Airbnbのカスタムマップスタイル、Apple Mapsの温かみのある建物表現。
 
+**ランドマーク(POI)ラベル**：MapTilerのベーススタイルは`streets-v2`を使う（`getBaseStyleUrl()`）。`basic-v2`には駅名以外の一般的な施設・店舗名レイヤーが含まれていないため、ズームすると地図上にランドマーク名が出るようにこちらへ変更した。ただしPOIのカラフルなアイコン画像（買い物・飲食等のカテゴリアイコン）は「村民ピン・スポットピンだけが高彩度」というブランド方針と合わないため、`applyBrandPalette()`内で`source-layer === "poi"`のレイヤーから`icon-image`を取り除き、ブランド色の文字ラベルのみ残している。
+
+**ラベルの日本語表記**：`streets-v2`の国・都市・都道府県・河川・海洋等のラベルレイヤーは`text-field`が`name:en`（英語名）優先の式になっており、そのままだと「Tokyo」「TOCHIGI PREFECTURE」のように英語表記になる。`applyBrandPalette()`内の`preferJapaneseLabel()`が、`name:en`を参照する`text-field`を`["coalesce", ["get","name:ja"], ["get","name"], ["get","name:en"]]`（日本語タグ→現地名→英語名の順）に置き換えている。
+
 ### 地図上の場所検索・現在地移動
 
 地名・住所から座標へのジオコーディングは`src/app/api/geocode/route.ts`（サーバー側API Route）が担う。優先順位はGoogle Places API(施設名・ランドマーク、最も精度が高いが有料、月10,000件まで無料) > Yahoo!ローカルサーチ(施設名・ランドマーク) > Yahoo!ジオコーダ(住所) > MapTiler Geocoding > Nominatim(OpenStreetMap、キー不要の最終フォールバック)。各サービスは得意分野が異なるため、該当なしの場合は次のサービスへ順に試す設計。YOLP・Google Places APIはいずれもCORS制限・APIキー秘匿の都合でブラウザから直接呼べないためAPI Route経由にしている。`GOOGLE_PLACES_API_KEY`・`YAHOO_CLIENT_ID`はどちらもサーバー専用のシークレット（`NEXT_PUBLIC_`を付けない）。クライアント側の`src/lib/geocode.ts`はこのAPI Routeを叩くだけの薄いラッパー。検索ボックス・「現在地に移動」ボタンのUIは`src/components/map/LocationSearchBox.tsx`に共通化してあり、`onFound(lat, lng)`コールバックで呼び出し側に座標を渡すだけの設計。3箇所で使われている：
@@ -85,7 +89,9 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 
 いずれも見つかった座標を使うだけで、村民ピン・スポットの登録データ自体とは無関係（ピン設置・スポット登録フローが「住所検索・逆ジオコーディングは使わない」と決めたのは、位置を確定させる手段としての話であり、検索は位置を探す手段として別途提供している）。
 
-**入力中の候補表示（Googleマップ風のサジェスト）**：`LocationSearchBox.tsx`は入力から300msデバウンスして`src/app/api/geocode/suggest/route.ts`を呼び、ドロップダウンで候補を表示する。候補選択時は`src/app/api/geocode/place/route.ts`（Place Details）で初めて座標を取得する2段階構成（Google Places Autocompleteのレスポンス自体には座標が含まれないため）。この候補表示はGoogle Places専用の機能で、`GOOGLE_PLACES_API_KEY`未設定の場合は常に候補なし（空配列）になり、Enter/検索ボタンでの確定検索（`route.ts`、Yahoo!以下へのフォールバックあり）のみが使える。
+**入力中の候補表示（Googleマップ風のサジェスト）**：`LocationSearchBox.tsx`は入力から300msデバウンスして`src/app/api/geocode/suggest/route.ts`を呼び、ドロップダウンで候補を表示する。候補は`structuredFormat`の`mainText`（スポット名、太字）・`secondaryText`（住所、小さくグレー）の2段組みでGoogleマップと同じ見た目にしている。候補選択時は`src/app/api/geocode/place/route.ts`（Place Details）で初めて座標を取得する2段階構成（Google Places Autocompleteのレスポンス自体には座標が含まれないため）。この候補表示はGoogle Places専用の機能で、`GOOGLE_PLACES_API_KEY`未設定の場合は常に候補なし（空配列）になり、Enter/検索ボタンでの確定検索（`route.ts`、Yahoo!以下へのフォールバックあり）のみが使える。
+
+**スポット登録の都道府県自動入力**：`SpotFormFlow.tsx`は地図クリック・検索候補選択のどちらでも、位置が決まるたびに`src/lib/nearestPrefecture.ts`で都道府県プルダウンの値を自動設定する（外部APIは使わない近似）。プルダウン自体は残しているため、境界付近など自動判定がズレた場合は手動で修正できる。
 
 ### 認証・DB設計
 

@@ -36,10 +36,23 @@ export async function GET(request: NextRequest) {
     .slice(0, 5)
     .map(
       (s: {
-        placePrediction: { placeId: string; text?: { text?: string } };
+        placePrediction: {
+          placeId: string;
+          text?: { text?: string };
+          // mainText: 施設・スポット名、secondaryText: 住所（Googleマップの候補表示と同じ2段組み用）
+          structuredFormat?: {
+            mainText?: { text?: string };
+            secondaryText?: { text?: string };
+          };
+        };
       }) => ({
         placeId: s.placePrediction.placeId,
-        text: s.placePrediction.text?.text ?? "",
+        mainText:
+          s.placePrediction.structuredFormat?.mainText?.text ??
+          s.placePrediction.text?.text ??
+          "",
+        secondaryText:
+          s.placePrediction.structuredFormat?.secondaryText?.text ?? "",
       }),
     );
 

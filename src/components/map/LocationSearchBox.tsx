@@ -71,7 +71,7 @@ export default function LocationSearchBox({ onFound }: Props) {
         setSearchError("見つかりませんでした");
         return;
       }
-      setSearchQuery(s.text);
+      setSearchQuery(s.mainText);
       setShowSuggestions(false);
       onFound(result.lat, result.lng);
     } catch {
@@ -161,7 +161,7 @@ export default function LocationSearchBox({ onFound }: Props) {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSelectSuggestion(s)}
                     disabled={selectingId === s.placeId}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-ink transition hover:bg-sand/60 disabled:opacity-50"
+                    className="flex w-full items-start gap-2 px-4 py-2 text-left transition hover:bg-sand/60 disabled:opacity-50"
                   >
                     <svg
                       width="13"
@@ -170,13 +170,22 @@ export default function LocationSearchBox({ onFound }: Props) {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
-                      className="shrink-0 text-ink-soft"
+                      className="mt-0.5 shrink-0 text-ink-soft"
                       aria-hidden="true"
                     >
                       <path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12Z" />
                       <circle cx="12" cy="9" r="2.5" />
                     </svg>
-                    <span className="truncate">{s.text}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-ink">
+                        {s.mainText}
+                      </span>
+                      {s.secondaryText && (
+                        <span className="block truncate text-xs text-ink-soft">
+                          {s.secondaryText}
+                        </span>
+                      )}
+                    </span>
                   </button>
                 </li>
               ))}
