@@ -39,11 +39,14 @@ const SpotFormFlow = dynamic(() => import("@/components/map/SpotFormFlow"), {
 });
 
 export default function HomeScreen() {
-  const { villager } = useAuth();
+  const { user, villager } = useAuth();
   const [selected, setSelected] = useState<SelectedMapItem>(null);
   const [pinFlowOpen, setPinFlowOpen] = useState(false);
   const [spotFlowOpen, setSpotFlowOpen] = useState(false);
   const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
+  const [spotInitialPosition, setSpotInitialPosition] = useState<
+    [number, number] | null
+  >(null);
   const [listOpen, setListOpen] = useState(false);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [spots, setSpots] = useState<Spot[]>([]);
@@ -83,6 +86,7 @@ export default function HomeScreen() {
         onOpenPinFlow={() => setPinFlowOpen(true)}
         onOpenSpotFlow={() => {
           setEditingSpot(null);
+          setSpotInitialPosition(null);
           setSpotFlowOpen(true);
         }}
       />
@@ -94,12 +98,19 @@ export default function HomeScreen() {
           setSelected({ type: "resident", data: resident })
         }
         onSelectSpot={(spot) => setSelected({ type: "spot", data: spot })}
+        canRegisterSpot={!!user}
+        onRegisterSpot={(lat, lng) => {
+          setEditingSpot(null);
+          setSpotInitialPosition([lat, lng]);
+          setSpotFlowOpen(true);
+        }}
       />
       <PopupCard
         selected={selected}
         onClose={() => setSelected(null)}
         onEditSpot={(spot) => {
           setEditingSpot(spot);
+          setSpotInitialPosition(null);
           setSpotFlowOpen(true);
         }}
       />
@@ -146,6 +157,7 @@ export default function HomeScreen() {
       <SpotFormFlow
         open={spotFlowOpen}
         editingSpot={editingSpot}
+        initialPosition={spotInitialPosition}
         onClose={() => setSpotFlowOpen(false)}
         onSaved={(spot) => {
           setSpots((prev) => {

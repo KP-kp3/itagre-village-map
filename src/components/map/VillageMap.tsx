@@ -29,6 +29,10 @@ type Props = {
   selectedId: string | null;
   onSelectResident: (resident: Resident) => void;
   onSelectSpot: (spot: Spot) => void;
+  // trueの場合のみ、検索結果ピンから直接スポット登録を始められるボタンを出す
+  // (スポット登録自体がログイン必須のため、ヘッダーのボタンと同様に未ログイン時は出さない)
+  canRegisterSpot?: boolean;
+  onRegisterSpot?: (lat: number, lng: number) => void;
 };
 
 type MarkerEntry = {
@@ -44,6 +48,8 @@ export default function VillageMap({
   selectedId,
   onSelectResident,
   onSelectSpot,
+  canRegisterSpot = false,
+  onRegisterSpot,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -51,6 +57,10 @@ export default function VillageMap({
   // 場所検索の結果地点を示す仮ピン。村民/スポットの実データではないため
   // markersByIdとは別管理にし、次の検索時に前回分を消して1本だけ表示する
   const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const [searchResult, setSearchResult] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   // クリック時のハンドラが常に最新のresident/spotを参照できるよう、
   // マーカー作成時ではなくクリック時にここから引く(データ更新のたびにリスナーを付け替える必要がなくなる)
   const dataById = useRef<
@@ -207,6 +217,7 @@ export default function VillageMap({
           searchMarkerRef.current = new maplibregl.Marker()
             .setLngLat([lng, lat])
             .addTo(map);
+          setSearchResult({ lat, lng });
           map.flyTo({
             center: [lng, lat],
             zoom: 14,
@@ -214,6 +225,37 @@ export default function VillageMap({
           });
         }}
       />
+
+      {canRegisterSpot && searchResult && onRegisterSpot && (
+        <div className="fixed left-4 top-36 z-[1050]">
+          <button
+            type="button"
+            onClick={() => {
+              searchMarkerRef.current?.remove();
+              searchMarkerRef.current = null;
+              setSearchResult(null);
+              onRegisterSpot(searchResult.lat, searchResult.lng);
+            }}
+            className="flex items-center gap-1.5 rounded-full bg-sage px-4 py-2 text-xs font-semibold text-cream shadow-[0_8px_24px_-8px_rgba(58,51,44,0.35)] transition hover:bg-sage-dark"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 21s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12Z" />
+              <circle cx="12" cy="9" r="2.5" />
+            </svg>
+            この場所をスポット登録
+          </button>
+        </div>
+      )}
     </>
   );
 }

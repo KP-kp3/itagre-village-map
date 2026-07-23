@@ -20,6 +20,8 @@ type Step = "picking" | "confirm" | "done";
 type Props = {
   open: boolean;
   editingSpot: Spot | null;
+  // 地図検索で見つけた場所からそのままスポット登録を始める場合の初期位置([lat, lng])
+  initialPosition?: [number, number] | null;
   onClose: () => void;
   onSaved: (spot: Spot) => void;
   onDeleted: (spotId: string) => void;
@@ -28,6 +30,7 @@ type Props = {
 export default function SpotFormFlow({
   open,
   editingSpot,
+  initialPosition = null,
   onClose,
   onSaved,
   onDeleted,
@@ -57,9 +60,13 @@ export default function SpotFormFlow({
     // モーダルを開くたびに新規登録/編集対象の状態で初期化する意図的なsetState
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStep("picking");
-    setTempPosition(editingSpot ? editingSpot.position : null);
+    const startPosition = editingSpot ? editingSpot.position : initialPosition;
+    setTempPosition(startPosition);
     setName(editingSpot?.name ?? "");
-    setPrefecture(editingSpot?.prefecture ?? "");
+    setPrefecture(
+      editingSpot?.prefecture ??
+        (startPosition ? nearestPrefecture(startPosition) : ""),
+    );
     setDescription(editingSpot?.description ?? "");
     setConfirmingDelete(false);
     setError(null);
@@ -99,6 +106,9 @@ export default function SpotFormFlow({
       if (editingSpot) {
         map.setCenter([editingSpot.position[1], editingSpot.position[0]]);
         map.setZoom(13);
+      } else if (initialPosition) {
+        map.setCenter([initialPosition[1], initialPosition[0]]);
+        map.setZoom(15);
       }
 
       setMapReady(true);
