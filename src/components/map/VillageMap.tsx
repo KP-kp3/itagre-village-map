@@ -48,6 +48,9 @@ export default function VillageMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersById = useRef<Map<string, MarkerEntry>>(new Map());
+  // 場所検索の結果地点を示す仮ピン。村民/スポットの実データではないため
+  // markersByIdとは別管理にし、次の検索時に前回分を消して1本だけ表示する
+  const searchMarkerRef = useRef<maplibregl.Marker | null>(null);
   // クリック時のハンドラが常に最新のresident/spotを参照できるよう、
   // マーカー作成時ではなくクリック時にここから引く(データ更新のたびにリスナーを付け替える必要がなくなる)
   const dataById = useRef<
@@ -94,6 +97,8 @@ export default function VillageMap({
       entries.forEach((entry) => entry.marker.remove());
       entries.clear();
       dataMap.clear();
+      searchMarkerRef.current?.remove();
+      searchMarkerRef.current = null;
       map?.remove();
       mapRef.current = null;
     };
@@ -196,7 +201,13 @@ export default function VillageMap({
       <div ref={containerRef} className="h-dvh w-dvw" />
       <LocationSearchBox
         onFound={(lat, lng) => {
-          mapRef.current?.flyTo({
+          const map = mapRef.current;
+          if (!map) return;
+          searchMarkerRef.current?.remove();
+          searchMarkerRef.current = new maplibregl.Marker()
+            .setLngLat([lng, lat])
+            .addTo(map);
+          map.flyTo({
             center: [lng, lat],
             zoom: 14,
             duration: 1000,
