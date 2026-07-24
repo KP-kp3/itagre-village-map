@@ -96,6 +96,8 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 ### 認証・DB設計
 
 - **会員制コミュニティのアクセス制限**：ITAGRE VillageはDiscordサーバーメンバー限定のコミュニティのため、退会者が引き続きログインできてしまわないよう、ログイン時にDiscordサーバー（`DISCORD_GUILD_ID`環境変数）の現メンバーかどうかを確認する（`src/app/auth/callback/route.ts`）。Discord OAuthに`guilds`スコープを追加し（`AuthProvider.tsx`の`signInWithDiscord`）、`exchangeCodeForSession()`が返す`provider_token`でDiscordの`/users/@me/guilds`を叩いて判定。メンバーでなければ即`signOut()`して`/?error=not_member`へリダイレクトし、`AccessDeniedNotice.tsx`がその場で通知を表示する。**サーバーを退出した瞬間ではなく、次にログインを試みたタイミングでのブロックになる**（Botによるリアルタイム監視は行わない、ログイン時チェックのみのシンプルな方式）。Discord API呼び出し自体が失敗した場合はブロックしない（fail-open。誤って正規メンバーを締め出さないことを優先）。`DISCORD_GUILD_ID`未設定の場合はこのチェック自体を行わない
+
+**Discordアプリ内蔵ブラウザでのログイン失敗**：Discordアプリ内蔵ブラウザ（WebView）はPKCE認証に必要なcode_verifierの永続化が不安定なことがあり、認証自体は完了してもセッションが確立されずログインできないことがある（ギルドメンバー確認まで到達しないため`AccessDeniedNotice`のバナーも出ない）。`src/components/auth/InAppBrowserNotice.tsx`がUser-Agentの`Discord`文字列を検知して警告バナーを表示する。Androidは`intent://`スキームで自動的にChromeへの遷移を試みる。iOSはOS側の制限でJSから強制的にSafariを開かせる確実な方法がないため、ワンタップの「ブラウザで開く」リンクを表示するのみ
 - テーブル：`profiles`（auth.usersを1:1拡張、role: member/admin）、`villagers`（村民プロフィール＋任意のピン）、`spots`（おすすめスポット）。定義は`supabase/migrations/`配下
 - **Discordログイン時は`profiles`のみ自動作成する。`villagers`はログインでは作らない**（`handle_new_user()`はprofilesのみ担当）
 - `villagers`は「マップに登録」操作で初めて作られる（`dog_name`→名前、`bio`→紹介文100字以内、`photo_url`→初期値はDiscordアバター、変更可）。この時点では`place_name`/`prefecture`/`lat`/`lng`はnullのまま＝地図には表示されない
@@ -110,7 +112,7 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 - スポットは登録された全件を実データとして地図に表示する（`src/components/home/HomeScreen.tsx`が`spots`テーブルを全件fetch）。村民ピンも同様に`lat`/`lng`が設定済みの全件を実データ表示する
 - RLS：`villagers`・`spots`・`profiles`のSELECTはログイン済み（`auth.uid() is not null`）限定（`supabase/migrations/0006_restrict_select_to_members.sql`）。未ログインの閲覧者には地図・一覧とも空の状態のみ表示される。この制限はDiscordサーバー退会者を締め出す目的だが、既存のログイン時ギルド確認の仕組み（次回ログイン時にブロック、リアルタイム強制ログアウトはしない）の上に乗るため、退会前から確立済みのセッションはログアウト/失効するまで閲覧を続けられる。INSERT/UPDATE/DELETEはログイン必須＋`auth.uid() = user_id`（自分の投稿のみ）。`is_admin()`関数がtrueを返す場合は全件編集可（同関数は`security definer`でRLSを介さずprofilesを参照するため、profilesのSELECT制限の影響を受けない）
 - `profiles`のroleは本人からは変更不可（RLSのwith checkで防止）。adminへの昇格は現時点ではSupabase側で直接SQL実行する運用（アプリ内に昇格UIはまだ無い）
-- Next.js側：`src/proxy.ts`（Next.js 16でmiddlewareから改名）でセッション更新、`src/app/auth/callback/route.ts`でOAuthコード交換、`src/components/auth/AuthProvider.tsx`でクライアント側のログイン状態を保持し`useAuth()`で参照する
+- Next.js側：`src/proxy.ts`（Next.js 16でmiddlewareから改名）でセッション更新、`src/app/auth/callback/route.ts`でOAuthコード交換、`src/components/auth/AuthProvider.tsx`でクライアント側のログイン状態を保持し`useAuth()`で参照する。`proxy.ts`の`matcher`は`icon.png`/`apple-icon.png`等の画像・`api/`配下を除外する（認証不要な上、ログイン直後の`/auth/callback`→`/`と同時に発生しがちなリクエストで不要にセッション更新処理が走るのを避けるため。新しい静的ファイルを追加する際はこのmatcherの対象漏れがないか確認する）
 - `src/types/database.ts`は現在手書き。実プロジェクトへマイグレーション適用後は`supabase gen types typescript`の出力に置き換える
 - 一覧表示の確定仕様（フェーズ6開始前に確認済み）：画面右下「一覧」ボタン→1つのパネル内で🐾村民／📍スポットをタブ切替（`src/components/list/ListPanel.tsx`）。並び順は新着順（`createdAt`降順）。検索（名前のリアルタイム部分一致）・都道府県フィルターはフェーズ7/8を待たずフェーズ6内で実装済み。村民ピンは`prefecture`を持たない設計のため、フィルターは`src/lib/nearestPrefecture.ts`（47都道府県の県庁所在地との直線距離が最も近いものを都度計算、DBには保存しない・外部API不使用）で都道府県を導出して両タブに適用する。一覧項目クリックで`VillageMap`の`selectedId`連携（パン＋ピン選択＋PopupCard表示）を流用し、パネルは自動的に閉じる
 - スポットの「登録者」表示のため、一覧取得時のみ`spots`を`profiles.discord_username`とjoinして取得する（`src/lib/spotToVillageSpot.ts`の`SpotRowWithRegistrant`）。PopupCard自体には登録者を表示しない（一覧のみ）

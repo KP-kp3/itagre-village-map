@@ -7,6 +7,7 @@ import PopupCard from "@/components/map/PopupCard";
 import ListPanel from "@/components/list/ListPanel";
 import WelcomeOverlay from "@/components/welcome/WelcomeOverlay";
 import AccessDeniedNotice from "@/components/auth/AccessDeniedNotice";
+import InAppBrowserNotice from "@/components/auth/InAppBrowserNotice";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -138,6 +139,7 @@ export default function HomeScreen() {
 
       <WelcomeOverlay />
       <AccessDeniedNotice />
+      <InAppBrowserNotice />
       <PinPlacementFlow
         open={pinFlowOpen}
         onClose={() => setPinFlowOpen(false)}
