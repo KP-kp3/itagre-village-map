@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { isSafeHttpUrl } from "@/lib/isSafeHttpUrl";
 import type { SelectedMapItem, Spot } from "@/types/village";
+
+// "YYYY-MM-DD"をタイムゾーンずれなく「YYYY年M月D日」表示に変換する
+function formatBirthday(birthday: string): string {
+  const [y, m, d] = birthday.split("-").map(Number);
+  return `${y}年${m}月${d}日`;
+}
 
 type Props = {
   selected: SelectedMapItem;
@@ -32,6 +39,8 @@ export default function PopupCard({ selected, onClose, onEditSpot }: Props) {
   const prefecture = isResident ? null : selected.data.prefecture;
   const body = isResident ? selected.data.bio : selected.data.description;
   const photoUrl = isResident ? selected.data.photoUrl : null;
+  const instagramUrl = isResident ? selected.data.instagramUrl : null;
+  const birthday = isResident ? selected.data.birthday : null;
   const isOwnSpot = !isResident && !!user && user.id === selected.data.userId;
 
   return (
@@ -58,7 +67,7 @@ export default function PopupCard({ selected, onClose, onEditSpot }: Props) {
               alt=""
               fill
               unoptimized
-              className="object-cover"
+              className="object-contain"
             />
           ) : (
             <span className="text-6xl drop-shadow-sm" aria-hidden="true">
@@ -121,6 +130,44 @@ export default function PopupCard({ selected, onClose, onEditSpot }: Props) {
                 </svg>
                 {selected.data.placeName}
               </p>
+
+              {birthday && (
+                <p className="mt-1 flex items-center gap-1 text-[13px] text-ink-soft">
+                  <span aria-hidden="true">🎂</span>
+                  {formatBirthday(birthday)}
+                </p>
+              )}
+
+              {instagramUrl && isSafeHttpUrl(instagramUrl) && (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex w-fit items-center gap-1 text-[13px] text-teal-dark underline-offset-2 hover:underline"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="shrink-0"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="5" />
+                    <circle cx="12" cy="12" r="3.5" />
+                    <circle
+                      cx="17.2"
+                      cy="6.8"
+                      r="0.6"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                  </svg>
+                  Instagramを見る
+                </a>
+              )}
             </>
           )}
 

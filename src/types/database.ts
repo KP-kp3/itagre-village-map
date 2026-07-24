@@ -26,6 +26,8 @@ export type Villager = {
   lat: number | null;
   lng: number | null;
   photo_url: string | null;
+  instagram_url: string | null;
+  birthday: string | null; // date型。"YYYY-MM-DD"
   created_at: string;
   updated_at: string;
 };

@@ -9,6 +9,8 @@ export type Resident = {
   placeName: string;
   bio: string;
   photoUrl: string | null;
+  instagramUrl: string | null;
+  birthday: string | null; // "YYYY-MM-DD"
   position: LatLng;
   createdAt: string;
 };

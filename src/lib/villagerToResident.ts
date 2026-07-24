@@ -11,6 +11,8 @@ export function villagerToResident(villager: Villager): Resident | null {
     placeName: villager.place_name,
     bio: villager.bio ?? "",
     photoUrl: villager.photo_url,
+    instagramUrl: villager.instagram_url,
+    birthday: villager.birthday,
     position: [villager.lat, villager.lng],
     createdAt: villager.created_at,
   };

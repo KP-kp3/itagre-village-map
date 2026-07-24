@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { uploadVillagerPhoto } from "@/lib/supabase/uploadVillagerPhoto";
 import { validateImageFile } from "@/lib/validateImageFile";
+import { isSafeHttpUrl } from "@/lib/isSafeHttpUrl";
 
 const BIO_MAX = 100;
 
@@ -26,6 +27,8 @@ export default function VillagerFormModal({
   const [entered, setEntered] = useState(false);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -41,6 +44,8 @@ export default function VillagerFormModal({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(villager?.dog_name ?? "");
     setBio(villager?.bio ?? "");
+    setInstagramUrl(villager?.instagram_url ?? "");
+    setBirthday(villager?.birthday ?? "");
     setPhotoUrl(villager?.photo_url ?? profile?.discord_avatar_url ?? null);
     setPendingFile(null);
     setPreviewUrl(null);
@@ -85,6 +90,14 @@ export default function VillagerFormModal({
     e.preventDefault();
     if (!user || !name.trim() || submitting) return;
 
+    const trimmedInstagramUrl = instagramUrl.trim();
+    if (trimmedInstagramUrl && !isSafeHttpUrl(trimmedInstagramUrl)) {
+      setError(
+        "Instagramリンクの形式が正しくありません（例：https://instagram.com/...）",
+      );
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -97,6 +110,8 @@ export default function VillagerFormModal({
       const payload = {
         dog_name: name.trim(),
         bio: bio.trim() ? bio.trim() : null,
+        instagram_url: trimmedInstagramUrl ? trimmedInstagramUrl : null,
+        birthday: birthday ? birthday : null,
         photo_url: finalPhotoUrl,
       };
 
@@ -255,6 +270,31 @@ export default function VillagerFormModal({
                 rows={3}
                 placeholder="自己紹介やお気に入りのことなど"
                 className="resize-none rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-teal"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-ink-soft">
+                Instagramリンク（任意）
+              </span>
+              <input
+                type="url"
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                placeholder="https://instagram.com/xxxxx"
+                className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-teal"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-ink-soft">
+                誕生日（任意）
+              </span>
+              <input
+                type="date"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+                className="rounded-2xl border border-ink/10 bg-cream px-4 py-2.5 text-sm text-ink outline-none transition focus:border-teal"
               />
             </label>
 
