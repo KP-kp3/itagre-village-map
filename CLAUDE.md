@@ -108,7 +108,7 @@ MapTilerのAPIキー設定後も同じ関数がそのまま使われる。
 - `spots`は`villagers`と独立したテーブルで、1人が複数登録できる（unique制約なし）。登録者(`user_id`)は自動取得。`category`列（既定値`'spot'`、check制約で`'spot'|'event'|'shop'`）を持たせているが、**MVPではUIに一切出さない**（一覧・登録画面・フィルターとも「おすすめスポット」のみ。event/shop用UIは将来それらを追加する時に初めて実装する）
 - スポット登録の確定仕様（フェーズ5開始前に確認済み）：承認フローなし（insertした瞬間から公開）、登録は`villagers`行（マップ登録）の有無を問わずDiscordログイン済みなら誰でも可、1人あたりの登録件数は無制限。`prefecture`は`not null`のため、逆ジオコーディングを使わず`src/data/prefectures.ts`の47都道府県から手動選択させる（ピン設置フローと同じく地図クリック＋簡単な入力のみの単純なUI方針を踏襲）。フェーズ5では登録・表示のみ実装し、編集・削除UIは未実装（DB側のRLSポリシーは既に用意済み）
 - スポットは登録された全件を実データとして地図に表示する（`src/components/home/HomeScreen.tsx`が`spots`テーブルを全件fetch）。村民ピンも同様に`lat`/`lng`が設定済みの全件を実データ表示する
-- RLS：全テーブルSELECTは公開。INSERT/UPDATE/DELETEはログイン必須＋`auth.uid() = user_id`（自分の投稿のみ）。`is_admin()`関数がtrueを返す場合は全件編集可
+- RLS：`villagers`・`spots`・`profiles`のSELECTはログイン済み（`auth.uid() is not null`）限定（`supabase/migrations/0006_restrict_select_to_members.sql`）。未ログインの閲覧者には地図・一覧とも空の状態のみ表示される。この制限はDiscordサーバー退会者を締め出す目的だが、既存のログイン時ギルド確認の仕組み（次回ログイン時にブロック、リアルタイム強制ログアウトはしない）の上に乗るため、退会前から確立済みのセッションはログアウト/失効するまで閲覧を続けられる。INSERT/UPDATE/DELETEはログイン必須＋`auth.uid() = user_id`（自分の投稿のみ）。`is_admin()`関数がtrueを返す場合は全件編集可（同関数は`security definer`でRLSを介さずprofilesを参照するため、profilesのSELECT制限の影響を受けない）
 - `profiles`のroleは本人からは変更不可（RLSのwith checkで防止）。adminへの昇格は現時点ではSupabase側で直接SQL実行する運用（アプリ内に昇格UIはまだ無い）
 - Next.js側：`src/proxy.ts`（Next.js 16でmiddlewareから改名）でセッション更新、`src/app/auth/callback/route.ts`でOAuthコード交換、`src/components/auth/AuthProvider.tsx`でクライアント側のログイン状態を保持し`useAuth()`で参照する
 - `src/types/database.ts`は現在手書き。実プロジェクトへマイグレーション適用後は`supabase gen types typescript`の出力に置き換える
